@@ -1,0 +1,49 @@
+local Workspace = game:GetService("Workspace")
+
+local function scanMapResources()
+    local uniqueNames = {}
+    local resultString = "Scanned Resources:\n"
+    local count = 0
+
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        local mainPart = nil
+        
+        if obj:IsA("BasePart") then
+            mainPart = obj
+        elseif obj:IsA("Model") then
+            mainPart = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+        elseif obj:IsA("Tool") then
+            mainPart = obj:FindFirstChild("Handle") or obj:FindFirstChildWhichIsA("BasePart")
+        end
+
+        if mainPart then
+            local isAnchored = mainPart.Anchored
+            local hasPrompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+
+            if not isAnchored and not hasPrompt then
+                local name = obj.Name
+                if not uniqueNames[name] then
+                    uniqueNames[name] = true
+                    count = count + 1
+                end
+            end
+        end
+    end
+
+    for name, _ in pairs(uniqueNames) do
+        resultString = resultString .. name .. "\n"
+    end
+    
+    resultString = resultString .. "Total unique items: " .. tostring(count)
+
+    if setclipboard then
+        setclipboard(resultString)
+    elseif toclipboard then
+        toclipboard(resultString)
+    else
+        warn("Clipboard function not supported by your executor. Check console.")
+        print(resultString)
+    end
+end
+
+scanMapResources()
