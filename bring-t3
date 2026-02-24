@@ -1,0 +1,63 @@
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+
+local targetNames = {"fuel", "wood", "log", "coal", "stick", "branch"}
+local MAX_SIZE = 10 
+
+local function bringItems()
+    local character = LocalPlayer.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then 
+        return 
+    end
+    
+    local rootPart = character.HumanoidRootPart
+
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        local objName = string.lower(obj.Name)
+        local isTarget = false
+        
+        for _, tName in pairs(targetNames) do
+            if string.find(objName, tName) then
+                isTarget = true
+                break
+            end
+        end
+
+        if isTarget then
+            local mainPart = nil
+            local itemSize = Vector3.new(0, 0, 0)
+            
+            if obj:IsA("BasePart") then
+                mainPart = obj
+                itemSize = obj.Size
+            elseif obj:IsA("Model") then
+                mainPart = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                if mainPart then
+                    itemSize = obj:GetExtentsSize() 
+                end
+            end
+
+            if mainPart then
+                local isAnchored = mainPart.Anchored
+                local hasPrompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                
+                local isSmallEnough = (itemSize.X <= MAX_SIZE and itemSize.Y <= MAX_SIZE and itemSize.Z <= MAX_SIZE)
+
+                if not isAnchored and not hasPrompt and isSmallEnough then
+                    if obj:IsA("BasePart") then
+                        obj.CFrame = rootPart.CFrame
+                    elseif obj:IsA("Model") and obj.PrimaryPart then
+                        obj:SetPrimaryPartCFrame(rootPart.CFrame)
+                    end
+                end
+            end
+        end
+    end
+end
+
+LocalPlayer.Chatted:Connect(function(msg)
+    if string.lower(msg) == "bring fuel" then
+        bringItems()
+    end
+end)
