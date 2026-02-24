@@ -1,0 +1,91 @@
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+
+local resourceCategories = {
+    fuel = {"log", "coal", "branch"},
+    loot = {"mossy coin", "coin stack", "sheet metal", "copper", "glass", "wire", "fuse", "gear"},
+    food = {"carrot", "berry"},
+    tools = {"flashlight", "radio", "ammo", "dagger", "crossbow"}
+}
+
+local MAX_SIZE = 10 
+
+local function bringItems(categoryName)
+    local character = LocalPlayer.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then 
+        return 
+    end
+    
+    local rootPart = character.HumanoidRootPart
+    local targetNames = {}
+
+    if categoryName == "all" then
+        for _, items in pairs(resourceCategories) do
+            for _, name in ipairs(items) do
+                table.insert(targetNames, name)
+            end
+        end
+    elseif resourceCategories[categoryName] then
+        targetNames = resourceCategories[categoryName]
+    else
+        return
+    end
+
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        local objName = string.lower(obj.Name)
+        local isTarget = false
+        
+        for _, tName in pairs(targetNames) do
+            if string.find(objName, tName) then
+                isTarget = true
+                break
+            end
+        end
+
+        if isTarget then
+            local mainPart = nil
+            local itemSize = Vector3.new(0, 0, 0)
+            
+            if obj:IsA("BasePart") then
+                mainPart = obj
+                itemSize = obj.Size
+            elseif obj:IsA("Model") then
+                mainPart = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                if mainPart then
+                    itemSize = obj:GetExtentsSize() 
+                end
+            end
+
+            if mainPart then
+                local isAnchored = mainPart.Anchored
+                local hasPrompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                local isSmallEnough = (itemSize.X <= MAX_SIZE and itemSize.Y <= MAX_SIZE and itemSize.Z <= MAX_SIZE)
+
+                if not isAnchored and not hasPrompt and isSmallEnough then
+                    if obj:IsA("BasePart") then
+                        obj.CFrame = rootPart.CFrame
+                    elseif obj:IsA("Model") and obj.PrimaryPart then
+                        obj:SetPrimaryPartCFrame(rootPart.CFrame)
+                    end
+                end
+            end
+        end
+    end
+end
+
+LocalPlayer.Chatted:Connect(function(msg)
+    local lowerMsg = string.lower(msg)
+    
+    if lowerMsg == "bring fuel" then
+        bringItems("fuel")
+    elseif lowerMsg == "bring loot" then
+        bringItems("loot")
+    elseif lowerMsg == "bring food" then
+        bringItems("food")
+    elseif lowerMsg == "bring tools" then
+        bringItems("tools")
+    elseif lowerMsg == "bring all" then
+        bringItems("all")
+    end
+end)
