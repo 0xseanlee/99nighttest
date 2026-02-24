@@ -1,0 +1,40 @@
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+
+local targetNames = {"fuel", "wood", "log", "coal"}
+
+local function bringItems()
+    local character = LocalPlayer.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then 
+        return 
+    end
+
+    local rootPart = character.HumanoidRootPart
+
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        local objName = string.lower(obj.Name)
+        local isTarget = false
+        
+        for _, tName in pairs(targetNames) do
+            if string.find(objName, tName) then
+                isTarget = true
+                break
+            end
+        end
+
+        if isTarget then
+            if obj:IsA("BasePart") then
+                obj.CFrame = rootPart.CFrame
+            elseif obj:IsA("Model") and obj.PrimaryPart then
+                obj:SetPrimaryPartCFrame(rootPart.CFrame)
+            end
+        end
+    end
+end
+
+LocalPlayer.Chatted:Connect(function(msg)
+    if string.lower(msg) == "bring fuel" then
+        bringItems()
+    end
+end)
