@@ -1,0 +1,167 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- --- Services ---
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
+local LocalPlayer = Players.LocalPlayer
+
+-- --- Data Dictionary ---
+local resourceCategories = {
+    fuel = {"log", "coal", "branch", "fuel canister", "oil barrel"},
+    loot = {"sheet metal", "copper", "glass", "fuse", "gear", "bolt", "tyre", "junk", "scrap", "microwave"},
+    money = {"coin", "coin stack"},
+    arms = {"revolver", "rifle", "ammo", "dagger", "crossbow", "sight", "stock", "barrel", "magazine"},
+    meds = {"medkit", "bandage", "pill", "medicine", "carrot", "berry"},
+}
+
+-- --- Variables ---
+local fullbrightEnabled = false
+local noCooldownEnabled = false
+local espEnabled = false
+
+-- --- Core Bring Logic (The "Better" One) ---
+local function executeBring(categoryName, targetPlayer)
+    local character = targetPlayer.Character
+    local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+
+    local targets = {}
+    if categoryName == "all" then
+        for _, list in pairs(resourceCategories) do
+            for _, name in ipairs(list) do table.insert(targets, name) end
+        end
+    else
+        targets = resourceCategories[categoryName]
+    end
+
+    local itemsFolder = Workspace:FindFirstChild("Items")
+    if not itemsFolder then return end
+
+    for _, obj in pairs(itemsFolder:GetChildren()) do
+        local objName = string.lower(obj.Name)
+        local isTarget = false
+        for _, tName in ipairs(targets) do
+            if string.find(objName, tName) then isTarget = true break end
+        end
+
+        if isTarget then
+            local mainPart = obj:IsA("BasePart") and obj or obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+            if mainPart and not mainPart.Anchored then
+                -- Precise Scatter & Pivot
+                local dropPosition = rootPart.CFrame * CFrame.new(math.random(-6, 6), 7, math.random(-8, -3))
+                
+                if obj:IsA("Model") then
+                    obj:PivotTo(dropPosition)
+                else
+                    obj.CFrame = dropPosition
+                end
+
+                -- Physics Wake-up (The part you liked)
+                mainPart.AssemblyLinearVelocity = Vector3.new(0, -20, 0)
+                mainPart.AssemblyAngularVelocity = Vector3.new(math.random(-5,5), 2, math.random(-5,5))
+            end
+        end
+    end
+end
+
+-- --- UI Setup ---
+local Window = Rayfield:CreateWindow({
+    Name = "99 Nights In The Forest | Supreme Edition",
+    LoadingTitle = "Initializing Better Logic...",
+    Theme = "Default",
+    ConfigurationSaving = { Enabled = true, FolderName = "NITF_Supreme", FileName = "Config" }
+})
+
+local TabMain = Window:CreateTab("Main", 4483362458)
+local TabBring = Window:CreateTab("Bringer", 4483362458)
+local TabESP = Window:CreateTab("Visuals", 4483362458)
+local TabPlayer = Window:CreateTab("Player", 4483362458)
+
+-- --- MAIN TAB ---
+TabMain:CreateSection("World Modification")
+TabMain:CreateToggle({
+    Name = "Fullbright (Night Vision)",
+    CurrentValue = false,
+    Callback = function(v) fullbrightEnabled = v end,
+})
+
+TabMain:CreateToggle({
+    Name = "Instant Interaction",
+    CurrentValue = false,
+    Callback = function(v) noCooldownEnabled = v end,
+})
+
+-- --- BRING TAB ---
+TabBring:CreateSection("Manual Bring Buttons")
+TabBring:CreateButton({ Name = "Bring All Items", Callback = function() executeBring("all", LocalPlayer) end })
+TabBring:CreateButton({ Name = "Bring Money", Callback = function() executeBring("money", LocalPlayer) end })
+TabBring:CreateButton({ Name = "Bring Arms/Ammo", Callback = function() executeBring("arms", LocalPlayer) end })
+TabBring:CreateButton({ Name = "Bring Loot/Scraps", Callback = function() executeBring("loot", LocalPlayer) end })
+TabBring:CreateButton({ Name = "Bring Meds/Food", Callback = function() executeBring("meds", LocalPlayer) end })
+
+-- --- VISUALS TAB ---
+TabESP:CreateToggle({
+    Name = "Highlight Items",
+    CurrentValue = false,
+    Callback = function(v) 
+        espEnabled = v 
+        if not v then
+            for _, item in pairs(Workspace:GetDescendants()) do
+                if item.Name == "ItemHighlight" then item:Destroy() end
+            end
+        end
+    end,
+})
+
+-- --- Loop Systems ---
+RunService.RenderStepped:Connect(function()
+    if fullbrightEnabled then
+        Lighting.Ambient = Color3.new(1, 1, 1)
+        Lighting.Brightness = 2
+        Lighting.GlobalShadows = false
+    end
+    if noCooldownEnabled then
+        for _, p in pairs(Workspace:GetDescendants()) do
+            if p:IsA("ProximityPrompt") then p.HoldDuration = 0 end
+        end
+    end
+end)
+
+task.spawn(function()
+    while task.wait(1.5) do
+        if espEnabled then
+            local items = Workspace:FindFirstChild("Items")
+            if items then
+                for _, item in pairs(items:GetChildren()) do
+                    if not item:FindFirstChild("ItemHighlight") then
+                        local hl = Instance.new("Highlight", item)
+                        hl.Name = "ItemHighlight"
+                        hl.FillColor = Color3.new(1, 1, 0)
+                        hl.FillTransparency = 0.6
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- --- Chat Listeners ---
+local function setupPlayer(player)
+    player.Chatted:Connect(function(msg)
+        local cmd = string.lower(msg)
+        if string.find(cmd, "bring ") then
+            local cat = string.sub(cmd, 7)
+            if resourceCategories[cat] or cat == "all" then
+                executeBring(cat, player)
+            end
+        end
+    end)
+end
+
+Players.PlayerAdded:Connect(setupPlayer)
+for _, player in pairs(Players:GetPlayers()) do setupPlayer(player) end
+
+Rayfield:LoadConfiguration()
