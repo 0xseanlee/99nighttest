@@ -1,0 +1,200 @@
+-- 防止重複執行與清理舊實體
+if _G.SeanleeHubStarted then
+    for _, v in pairs(game:GetService("CoreGui"):GetChildren()) do
+        if v.Name == "SeanleeIcon" or v.Name == "Rayfield" or v:FindFirstChild("Main") then
+            v:Destroy()
+        end
+    end
+end
+_G.SeanleeHubStarted = true
+
+-- 加載你託管的 UI 庫
+local seanlee = loadstring(game:HttpGet('https://raw.githubusercontent.com/0xseanlee/99nighttest/refs/heads/main/UI'))()
+
+-- --- 基礎設定 ---
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+local resourceCategories = {
+    fuel = {"log", "coal", "branch", "fuel canister", "oil barrel"},
+    loot = {"sheet metal", "copper", "glass", "fuse", "gear", "bolt", "tyre", "junk", "scrap", "microwave"},
+    money = {"coin", "coin stack"},
+    arms = {"revolver", "rifle", "ammo", "dagger", "crossbow", "sight", "stock", "barrel", "magazine"},
+    meds = {"medkit", "bandage", "pill", "medicine", "carrot", "berry"},
+}
+
+local fullbrightEnabled = false
+local noCooldownEnabled = false
+local espEnabled = false
+
+-- --- 核心功能 ---
+local function executeBring(categoryName, targetPlayer)
+    local character = targetPlayer.Character
+    local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+
+    local targets = (categoryName == "all") and {} or resourceCategories[categoryName]
+    if categoryName == "all" then
+        for _, list in pairs(resourceCategories) do
+            for _, name in ipairs(list) do table.insert(targets, name) end
+        end
+    end
+
+    local itemsFolder = Workspace:FindFirstChild("Items")
+    if not itemsFolder then return end
+
+    local count = 0
+    for _, obj in pairs(itemsFolder:GetChildren()) do
+        local isTarget = false
+        for _, tName in ipairs(targets) do
+            if string.find(string.lower(obj.Name), tName) then isTarget = true break end
+        end
+
+        if isTarget then
+            local mainPart = obj:IsA("BasePart") and obj or obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+            if mainPart and not mainPart.Anchored then
+                local dropPos = rootPart.CFrame * CFrame.new(math.random(-6, 6), 7, math.random(-8, -3))
+                if obj:IsA("Model") then obj:PivotTo(dropPos) else obj.CFrame = dropPos end
+                mainPart.AssemblyLinearVelocity = Vector3.new(0, -20, 0)
+                count = count + 1
+            end
+        end
+    end
+    seanlee:Notify({Title = "0xseanlee 系統", Content = "已搬運 " .. count .. " 個物資", Duration = 2})
+end
+
+-- --- 建立視窗 ---
+local Window = seanlee:CreateWindow({
+    Name = "0xseanlee Hub | 99 Nights",
+    LoadingTitle = "正在啟動...",
+    LoadingSubtitle = "by 0xseanlee",
+    Theme = "Default",
+    ConfigurationSaving = { Enabled = false }
+})
+
+-- --- 建立小圖示 (喚醒功能修正) ---
+local function CreateWakeUpIcon()
+    local sg = Instance.new("ScreenGui")
+    sg.Name = "SeanleeIcon"
+    sg.Parent = game:GetService("CoreGui")
+    sg.DisplayOrder = 999 -- 確保在最上層
+
+    local btn = Instance.new("ImageButton")
+    btn.Name = "WakeBtn"
+    btn.Size = UDim2.new(0, 55, 0, 55)
+    btn.Position = UDim2.new(0, 20, 0.5, -27)
+    btn.Image = "https://lh3.googleusercontent.com/a/ACg8ocK5Qru309HfUFaXU7nvey15pue-YpZj3Du26g_QNVg8XBt_Rx5F=s1000-c" 
+    btn.BackgroundTransparency = 0.3
+    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    btn.BorderSizePixel = 0
+    btn.Visible = false
+    btn.Parent = sg
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(1, 0)
+    corner.Parent = btn
+
+    btn.MouseButton1Click:Connect(function()
+        -- 遍歷所有可能名為 Rayfield 的 GUI 並顯示
+        for _, v in pairs(game:GetService("CoreGui"):GetChildren()) do
+            if v:IsA("ScreenGui") and (v.Name == "Rayfield" or v:FindFirstChild("Main")) then
+                v.Enabled = true
+            end
+        end
+        btn.Visible = false
+    end)
+    return btn
+end
+
+local wakeIcon = CreateWakeUpIcon()
+
+-- 改進的 UI 隱藏監控
+task.spawn(function()
+    while true do
+        task.wait(0.2) -- 加快偵測速度
+        local foundUI = false
+        local uiVisible = false
+        
+        for _, v in pairs(game:GetService("CoreGui"):GetChildren()) do
+            if v:IsA("ScreenGui") and (v.Name == "Rayfield" or v:FindFirstChild("Main")) then
+                foundUI = true
+                if v.Enabled then uiVisible = true end
+            end
+        end
+        
+        -- 如果 UI 存在且被隱藏了，就顯示頭像
+        if foundUI and not uiVisible then
+            wakeIcon.Visible = true
+        else
+            wakeIcon.Visible = false
+        end
+    end
+end)
+
+-- --- UI 內容 ---
+local TabMain = Window:CreateTab("主要功能", 4483362458)
+local TabBring = Window:CreateTab("物資搬運", 4483362458)
+local TabESP = Window:CreateTab("視覺透視", 4483362458)
+
+TabMain:CreateToggle({
+    Name = "全亮夜視",
+    CurrentValue = false,
+    Callback = function(v) fullbrightEnabled = v end,
+})
+
+TabMain:CreateToggle({
+    Name = "瞬間交互 (無讀條)",
+    CurrentValue = false,
+    Callback = function(v) noCooldownEnabled = v end,
+})
+
+TabBring:CreateButton({ Name = "吸取：全部物品", Callback = function() executeBring("all", LocalPlayer) end })
+TabBring:CreateButton({ Name = "吸取：金錢", Callback = function() executeBring("money", LocalPlayer) end })
+TabBring:CreateButton({ Name = "吸取：武器材料", Callback = function() executeBring("loot", LocalPlayer) end })
+
+TabESP:CreateToggle({
+    Name = "物品發光透視",
+    CurrentValue = false,
+    Callback = function(v) 
+        espEnabled = v 
+        if not v then
+            for _, item in pairs(Workspace:GetDescendants()) do
+                if item.Name == "ItemHighlight" then item:Destroy() end
+            end
+        end
+    end,
+})
+
+-- --- 環境控制 ---
+RunService.RenderStepped:Connect(function()
+    if fullbrightEnabled then Lighting.Ambient = Color3.new(1, 1, 1) end
+    if noCooldownEnabled then
+        for _, p in pairs(Workspace:GetDescendants()) do
+            if p:IsA("ProximityPrompt") then p.HoldDuration = 0 end
+        end
+    end
+end)
+
+-- --- ESP 循環 ---
+task.spawn(function()
+    while task.wait(1.5) do
+        if espEnabled then
+            local items = Workspace:FindFirstChild("Items")
+            if items then
+                for _, item in pairs(items:GetChildren()) do
+                    if not item:FindFirstChild("ItemHighlight") then
+                        local hl = Instance.new("Highlight", item)
+                        hl.Name = "ItemHighlight"
+                        hl.FillColor = Color3.new(1, 1, 0)
+                        hl.FillTransparency = 0.5
+                    end
+                end
+            end
+        end
+    end
+end)
+
+seanlee:Notify({Title = "0xseanlee Hub", Content = "腳本啟動成功！", Duration = 3})
