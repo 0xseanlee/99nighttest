@@ -1,0 +1,96 @@
+-- Services
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+
+-- Item Categories
+local resourceCategories = {
+    fuel = {"log", "coal", "branch", "fuel canister", "oil barrel"},
+    loot = {"sheet metal", "copper", "glass", "fuse", "gear", "bolt", "tyre", "junk", "scrap", "microwave"},
+    money = {"coin", "coin stack"},
+    arms = {"revolver", "rifle", "ammo", "dagger", "crossbow", "sight", "stock", "barrel", "magazine"},
+    meds = {"medkit", "bandage", "pill", "medicine", "carrot", "berry"},
+}
+
+local function bringItems(categoryName, speaker)
+    local character = speaker.Character
+    local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+
+    local targets = {}
+    if categoryName == "all" then
+        for _, list in pairs(resourceCategories) do
+            for _, name in ipairs(list) do table.insert(targets, name) end
+        end
+    else
+        targets = resourceCategories[categoryName]
+    end
+
+    local itemsFolder = Workspace:FindFirstChild("Items")
+    if not itemsFolder then return end
+
+    local foundCount = 0
+    for _, obj in pairs(itemsFolder:GetChildren()) do
+        local objName = string.lower(obj.Name)
+        local isTarget = false
+
+        for _, tName in ipairs(targets) do
+            if string.find(objName, tName) then
+                isTarget = true
+                break
+            end
+        end
+
+        if isTarget then
+            local mainPart = obj:IsA("BasePart") and obj or obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+            
+            if mainPart and not mainPart.Anchored then
+                -- Wider scatter radius: 12x12 area in front of the player
+                local randomX = math.random(-6, 6) 
+                local randomZ = math.random(-8, -3)
+                local dropCFrame = rootPart.CFrame * CFrame.new(randomX, 6, randomZ)
+                
+                -- PivotTo is the most reliable way to move models/parts without breaking them
+                if obj:IsA("Model") then
+                    obj:PivotTo(dropCFrame)
+                elseif obj:IsA("BasePart") then
+                    obj.CFrame = dropCFrame
+                end
+
+                -- Force physics wake-up using modern Assembly properties
+                mainPart.AssemblyLinearVelocity = Vector3.new(0, -15, 0)
+                mainPart.AssemblyAngularVelocity = Vector3.new(math.random(-10,10), math.random(-10,10), math.random(-10,10))
+                
+                -- Strict weld cleanup
+                for _, child in pairs(obj:GetDescendants()) do
+                    if child:IsA("Weld") or child:IsA("WeldConstraint") then
+                        if not child.Part0 or not child.Part1 or not child.Part0:IsDescendantOf(obj) or not child.Part1:IsDescendantOf(obj) then
+                            child:Destroy()
+                        end
+                    end
+                end
+
+                foundCount = foundCount + 1
+            end
+        end
+    end
+    print(speaker.Name .. " brought " .. tostring(foundCount) .. " items via PivotTo.")
+end
+
+-- Setup chat commands
+local function setupPlayer(player)
+    player.Chatted:Connect(function(msg)
+        local cmd = string.lower(msg)
+        if cmd == "bring fuel" then bringItems("fuel", player)
+        elseif cmd == "bring loot" then bringItems("loot", player)
+        elseif cmd == "bring money" then bringItems("money", player)
+        elseif cmd == "bring arms" then bringItems("arms", player)
+        elseif cmd == "bring meds" then bringItems("meds", player)
+        elseif cmd == "bring all" then bringItems("all", player)
+        end
+    end)
+end
+
+Players.PlayerAdded:Connect(setupPlayer)
+for _, player in pairs(Players:GetPlayers()) do setupPlayer(player) end
+
+print("--- 99 Nights PivotTo Bringer Loaded ---")
