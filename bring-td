@@ -1,0 +1,17 @@
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = game:GetService("Players").LocalPlayer
+
+-- 我們現在只需專注掃描 Items 資料夾
+local function bringTarget(targetName)
+    local rootPart = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+
+    -- 直接遍歷 Items 資料夾，完全不需要複雜的物理檢查了
+    for _, obj in pairs(Workspace.Items:GetChildren()) do
+        if obj:IsA("Model") and obj.PrimaryPart then
+            if string.find(string.lower(obj.Name), string.lower(targetName)) then
+                obj.PrimaryPart.CFrame = rootPart.CFrame
+            end
+        end
+    end
+end
