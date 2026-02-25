@@ -1,0 +1,96 @@
+-- Services
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+
+-- 精確分類清單
+local resourceCategories = {
+    fuel = {"log", "coal", "branch", "fuel canister", "oil barrel"},
+    loot = {"sheet metal", "copper", "glass", "fuse", "gear", "bolt", "tyre", "junk", "scrap", "microwave"},
+    money = {"coin", "coin stack"},
+    arms = {"revolver", "rifle", "ammo", "dagger", "crossbow", "sight", "stock", "barrel", "magazine"},
+    meds = {"medkit", "bandage", "pill", "medicine", "carrot", "berry"},
+}
+
+local function bringItems(categoryName, speaker)
+    local character = speaker.Character
+    local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+
+    local targets = {}
+    if categoryName == "all" then
+        for _, list in pairs(resourceCategories) do
+            for _, name in ipairs(list) do table.insert(targets, name) end
+        end
+    else
+        targets = resourceCategories[categoryName]
+    end
+
+    local itemsFolder = Workspace:FindFirstChild("Items")
+    if not itemsFolder then return end
+
+    local foundCount = 0
+    for _, obj in pairs(itemsFolder:GetChildren()) do
+        local objName = string.lower(obj.Name)
+        local isTarget = false
+
+        for _, tName in ipairs(targets) do
+            if string.find(objName, tName) then
+                isTarget = true
+                break
+            end
+        end
+
+        if isTarget then
+            local mainPart = obj:IsA("BasePart") and obj or obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+            
+            if mainPart and not mainPart.Anchored then
+                -- 1. 增加散佈範圍：在玩家前方一個 6x6 的正方形區域內隨機降落
+                local randomX = math.random(-3, 3) 
+                local randomZ = math.random(-5, -2) -- 確保在玩家面前，而不是重疊在腳下
+                local dropPosition = rootPart.CFrame * CFrame.new(randomX, 5, randomZ)
+                
+                if obj:IsA("Model") then
+                    obj:SetPrimaryPartCFrame(dropPosition)
+                else
+                    obj.CFrame = dropPosition
+                end
+
+                -- 2. 物理喚醒與清理：確保物品是獨立的物理個體
+                mainPart.Velocity = Vector3.new(0, -2, 0) -- 給予初始下墜速度
+                mainPart.RotVelocity = Vector3.new(math.random(), math.random(), math.random()) -- 給一點隨機旋轉，看起來更自然
+                
+                -- 3. 確保物品不會被彼此的 Weld（焊接）拉住
+                for _, child in pairs(obj:GetDescendants()) do
+                    if child:IsA("Weld") or child:IsA("ManualWeld") or child:IsA("WeldConstraint") then
+                        -- 只刪除連向外部的焊接，保留模型內部的焊接
+                        if not child.Part0:IsDescendantOf(obj) or not child.Part1:IsDescendantOf(obj) then
+                            child:Destroy()
+                        end
+                    end
+                end
+
+                foundCount = foundCount + 1
+            end
+        end
+    end
+    print(speaker.Name .. " brought " .. tostring(foundCount) .. " items. Physics cleared.")
+end
+
+-- 指令設定
+local function setupPlayer(player)
+    player.Chatted:Connect(function(msg)
+        local cmd = string.lower(msg)
+        if cmd == "bring fuel" then bringItems("fuel", player)
+        elseif cmd == "bring loot" then bringItems("loot", player)
+        elseif cmd == "bring money" then bringItems("money", player)
+        elseif cmd == "bring arms" then bringItems("arms", player)
+        elseif cmd == "bring meds" then bringItems("meds", player)
+        elseif cmd == "bring all" then bringItems("all", player)
+        end
+    end)
+end
+
+Players.PlayerAdded:Connect(setupPlayer)
+for _, player in pairs(Players:GetPlayers()) do setupPlayer(player) end
+
+print("--- 99 Nights Physics-Optimized Bringer Loaded ---")
