@@ -1,0 +1,182 @@
+-- 防止重複執行
+if _G.SeanleeHubStarted then
+    if game:GetService("CoreGui"):FindFirstChild("Rayfield") then game:GetService("CoreGui").Rayfield:Destroy() end
+    if game:GetService("CoreGui"):FindFirstChild("SeanleeIcon") then game:GetService("CoreGui").SeanleeIcon:Destroy() end
+end
+_G.SeanleeHubStarted = true
+
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- --- 基礎設定 ---
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+local resourceCategories = {
+    fuel = {"log", "coal", "branch", "fuel canister", "oil barrel"},
+    loot = {"sheet metal", "copper", "glass", "fuse", "gear", "bolt", "tyre", "junk", "scrap", "microwave"},
+    money = {"coin", "coin stack"},
+    arms = {"revolver", "rifle", "ammo", "dagger", "crossbow", "sight", "stock", "barrel", "magazine"},
+    meds = {"medkit", "bandage", "pill", "medicine", "carrot", "berry"},
+}
+
+-- --- 功能狀態 ---
+local fullbrightEnabled = false
+local noCooldownEnabled = false
+local espEnabled = false
+
+-- --- 核心：落地式 Bring ---
+local function executeBring(categoryName, targetPlayer)
+    local character = targetPlayer.Character
+    local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+
+    local targets = (categoryName == "all") and {} or resourceCategories[categoryName]
+    if categoryName == "all" then
+        for _, list in pairs(resourceCategories) do
+            for _, name in ipairs(list) do table.insert(targets, name) end
+        end
+    end
+
+    local itemsFolder = Workspace:FindFirstChild("Items")
+    if not itemsFolder then return end
+
+    local count = 0
+    for _, obj in pairs(itemsFolder:GetChildren()) do
+        local isTarget = false
+        for _, tName in ipairs(targets) do
+            if string.find(string.lower(obj.Name), tName) then isTarget = true break end
+        end
+
+        if isTarget then
+            local mainPart = obj:IsA("BasePart") and obj or obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+            if mainPart and not mainPart.Anchored then
+                local dropPos = rootPart.CFrame * CFrame.new(math.random(-6, 6), 7, math.random(-8, -3))
+                if obj:IsA("Model") then obj:PivotTo(dropPos) else obj.CFrame = dropPos end
+                mainPart.AssemblyLinearVelocity = Vector3.new(0, -20, 0)
+                count = count + 1
+            end
+        end
+    end
+    Rayfield:Notify({Title = "0xseanlee hub", Content = "已搬運 " .. count .. " 個物資", Duration = 2})
+end
+
+-- --- 建立視窗 ---
+local Window = Rayfield:CreateWindow({
+    Name = "0xseanlee Hub | 99 Nights",
+    LoadingTitle = "0xseanlee hub is loading...",
+    LoadingSubtitle = "by 0xseanlee",
+    Theme = "Default",
+    ConfigurationSaving = { Enabled = false }
+})
+
+-- --- 建立小圖示 (喚醒功能) ---
+local function CreateWakeUpIcon()
+    local sg = Instance.new("ScreenGui")
+    sg.Name = "SeanleeIcon"
+    sg.Parent = game:GetService("CoreGui")
+
+    local btn = Instance.new("ImageButton")
+    btn.Size = UDim2.new(0, 50, 0, 50)
+    btn.Position = UDim2.new(0, 20, 0.5, -25) -- 畫面左側中間
+    btn.Image = "https://lh3.googleusercontent.com/a/ACg8ocK5Qru309HfUFaXU7nvey15pue-YpZj3Du26g_QNVg8XBt_Rx5F=s1000-c" -- 你的頭像圖示
+    btn.BackgroundTransparency = 0.5
+    btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    btn.BorderSizePixel = 0
+    btn.Visible = false -- 初始隱藏
+    btn.Parent = sg
+
+    -- 圓角修飾
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(1, 0)
+    corner.Parent = btn
+
+    btn.MouseButton1Click:Connect(function()
+        -- 點擊後顯示介面並隱藏自己
+        if game:GetService("CoreGui"):FindFirstChild("Rayfield") then
+            game:GetService("CoreGui").Rayfield.Enabled = true
+            btn.Visible = false
+        end
+    end)
+    
+    return btn
+end
+
+local wakeIcon = CreateWakeUpIcon()
+
+-- 修改 Rayfield 關閉邏輯
+-- 註：Rayfield 本身提供按鈕縮小，但如果你按了叉叉，我們讓它隱藏並顯示 Icon
+task.spawn(function()
+    while task.wait(0.5) do
+        if game:GetService("CoreGui"):FindFirstChild("Rayfield") then
+            if game:GetService("CoreGui").Rayfield.Enabled == false then
+                wakeIcon.Visible = true
+            end
+        end
+    end
+end)
+
+-- --- UI 分頁內容 ---
+local TabMain = Window:CreateTab("主要", 4483362458)
+local TabBring = Window:CreateTab("傳送物品", 4483362458)
+local TabESP = Window:CreateTab("透視", 4483362458)
+
+TabMain:CreateToggle({
+    Name = "夜視全亮",
+    CurrentValue = false,
+    Callback = function(v) fullbrightEnabled = v end,
+})
+
+TabMain:CreateToggle({
+    Name = "跳過開啟（跳過E鍵）",
+    CurrentValue = false,
+    Callback = function(v) noCooldownEnabled = v end,
+})
+
+TabBring:CreateButton({ Name = "攜帶：全部物品", Callback = function() executeBring("all", LocalPlayer) end })
+TabBring:CreateButton({ Name = "攜帶：金幣", Callback = function() executeBring("money", LocalPlayer) end })
+TabBring:CreateButton({ Name = "攜帶：武器材料", Callback = function() executeBring("loot", LocalPlayer) end })
+
+TabESP:CreateToggle({
+    Name = "物品發光",
+    CurrentValue = false,
+    Callback = function(v) 
+        espEnabled = v 
+        if not v then
+            for _, item in pairs(Workspace:GetDescendants()) do
+                if item.Name == "ItemHighlight" then item:Destroy() end
+            end
+        end
+    end,
+})
+
+-- --- 背景循環 ---
+RunService.RenderStepped:Connect(function()
+    if fullbrightEnabled then Lighting.Ambient = Color3.new(1, 1, 1) end
+    if noCooldownEnabled then
+        for _, p in pairs(Workspace:GetDescendants()) do
+            if p:IsA("ProximityPrompt") then p.HoldDuration = 0 end
+        end
+    end
+end)
+
+task.spawn(function()
+    while task.wait(1.5) do
+        if espEnabled then
+            local items = Workspace:FindFirstChild("Items")
+            if items then
+                for _, item in pairs(items:GetChildren()) do
+                    if not item:FindFirstChild("ItemHighlight") then
+                        local hl = Instance.new("Highlight", item)
+                        hl.Name = "ItemHighlight"
+                        hl.FillColor = Color3.new(1, 1, 0)
+                    end
+                end
+            end
+        end
+    end
+end)
+
+Rayfield:Notify({Title = "0xseanlee Hub", Content = "腳本已啟動，縮小後可點擊左側頭像還原", Duration = 3})
