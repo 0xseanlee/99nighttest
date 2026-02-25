@@ -1,0 +1,93 @@
+-- Services
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+
+-- 精確資源清單 (根據開源腳本與掃描結果)
+local resourceCategories = {
+    fuel = {"log", "coal", "branch", "fuel canister", "oil barrel"},
+    loot = {"coin", "sheet metal", "copper", "glass", "fuse", "gear", "bolt", "tyre", "radio", "junk", "scrap", "microwave"},
+    food = {"carrot", "berry"},
+    tools = {"flashlight", "ammo", "revolver", "rifle", "dagger", "crossbow"}
+}
+
+-- 核心搬運函數
+local function bringItems(categoryName)
+    local character = LocalPlayer.Character
+    local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+    
+    if not rootPart then 
+        print("Character not found!")
+        return 
+    end
+
+    -- 確定要抓取的目標清單
+    local targets = {}
+    if categoryName == "all" then
+        for _, list in pairs(resourceCategories) do
+            for _, name in ipairs(list) do table.insert(targets, name) end
+        end
+    else
+        targets = resourceCategories[categoryName]
+    end
+
+    if not targets then return end
+
+    -- 關鍵優化：只掃描 Items 資料夾 (這行是防止拆地圖的關鍵)
+    local itemsFolder = Workspace:FindFirstChild("Items")
+    if not itemsFolder then
+        print("Items folder not found in Workspace!")
+        return
+    end
+
+    local foundCount = 0
+    for _, obj in pairs(itemsFolder:GetChildren()) do
+        local objName = string.lower(obj.Name)
+        local isTarget = false
+
+        for _, tName in ipairs(targets) do
+            if string.find(objName, tName) then
+                isTarget = true
+                break
+            end
+        end
+
+        if isTarget then
+            -- 取得物件的物理主體
+            local mainPart = obj:IsA("BasePart") and obj or obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+            
+            if mainPart and not mainPart.Anchored then
+                -- 稍微偏移，避免所有物品重疊在一起導致爆炸彈開
+                local offset = Vector3.new(math.random(-2, 2), 2, math.random(-2, 2))
+                
+                if obj:IsA("Model") then
+                    obj:SetPrimaryPartCFrame(CFrame.new(rootPart.Position + offset))
+                else
+                    obj.CFrame = CFrame.new(rootPart.Position + offset)
+                end
+                foundCount = foundCount + 1
+            end
+        end
+    end
+    print("Success: Brought " .. tostring(foundCount) .. " items.")
+end
+
+-- 監聽聊天室指令
+LocalPlayer.Chatted:Connect(function(msg)
+    local cmd = string.lower(msg)
+    
+    if cmd == "bring fuel" then
+        bringItems("fuel")
+    elseif cmd == "bring loot" then
+        bringItems("loot")
+    elseif cmd == "bring food" then
+        bringItems("food")
+    elseif cmd == "bring tools" then
+        bringItems("tools")
+    elseif cmd == "bring all" then
+        bringItems("all")
+    end
+end)
+
+print("--- 99 Nights Resource Bringer Loaded ---")
+print("Commands: bring fuel, bring loot, bring food, bring tools, bring all")
