@@ -1,0 +1,189 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- --- 系統服務 ---
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
+local LocalPlayer = Players.LocalPlayer
+
+-- --- 資源分類數據 ---
+local resourceCategories = {
+    fuel = {"log", "coal", "branch", "fuel canister", "oil barrel"},
+    loot = {"sheet metal", "copper", "glass", "fuse", "gear", "bolt", "tyre", "junk", "scrap", "microwave"},
+    money = {"coin", "coin stack"},
+    arms = {"revolver", "rifle", "ammo", "dagger", "crossbow", "sight", "stock", "barrel", "magazine"},
+    meds = {"medkit", "bandage", "pill", "medicine", "carrot", "berry"},
+}
+
+-- --- 狀態控制變量 ---
+local fullbrightEnabled = false
+local noCooldownEnabled = false
+local espEnabled = false
+
+-- --- 核心功能：落地式 Bring 邏輯 ---
+local function executeBring(categoryName, targetPlayer)
+    local character = targetPlayer.Character
+    local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+
+    local targets = {}
+    if categoryName == "all" then
+        for _, list in pairs(resourceCategories) do
+            for _, name in ipairs(list) do table.insert(targets, name) end
+        end
+    else
+        targets = resourceCategories[categoryName]
+    end
+
+    local itemsFolder = Workspace:FindFirstChild("Items")
+    if not itemsFolder then return end
+
+    local foundCount = 0
+    for _, obj in pairs(itemsFolder:GetChildren()) do
+        local objName = string.lower(obj.Name)
+        local isTarget = false
+        for _, tName in ipairs(targets) do
+            if string.find(objName, tName) then isTarget = true break end
+        end
+
+        if isTarget then
+            local mainPart = obj:IsA("BasePart") and obj or obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+            if mainPart and not mainPart.Anchored then
+                -- 散佈位置優化：玩家前方 3-8 格，上方 7 格落下
+                local dropPosition = rootPart.CFrame * CFrame.new(math.random(-6, 6), 7, math.random(-8, -3))
+                
+                if obj:IsA("Model") then
+                    obj:PivotTo(dropPosition)
+                else
+                    obj.CFrame = dropPosition
+                end
+
+                -- 強制物理喚醒與下墜衝力
+                mainPart.AssemblyLinearVelocity = Vector3.new(0, -20, 0)
+                mainPart.AssemblyAngularVelocity = Vector3.new(math.random(-5,5), 2, math.random(-5,5))
+                foundCount = foundCount + 1
+            end
+        end
+    end
+    Rayfield:Notify({Title = "傳送成功", Content = "已搬運 " .. tostring(foundCount) .. " 個物品", Duration = 2})
+end
+
+-- --- UI 視窗初始化 ---
+local Window = Rayfield:CreateWindow({
+    Name = "0xseanlee Hub | 99 Nights",
+    LoadingTitle = "正在啟動 0xseanlee 核心系統...",
+    LoadingSubtitle = "繁體中文優化版",
+    Theme = "Default",
+    ConfigurationSaving = { Enabled = true, FolderName = "0xseanlee_Config", FileName = "Main" }
+})
+
+-- --- 分頁設定 ---
+local TabMain = Window:CreateTab("主要功能", 4483362458)
+local TabBring = Window:CreateTab("物資搬運", 4483362458)
+local TabESP = Window:CreateTab("視覺透視", 4483362458)
+local TabPlayer = Window:CreateTab("玩家修改", 4483362458)
+
+-- --- 主要功能分頁 ---
+TabMain:CreateSection("環境修改")
+TabMain:CreateToggle({
+    Name = "全亮夜視 (Fullbright)",
+    CurrentValue = false,
+    Callback = function(v) fullbrightEnabled = v end,
+})
+
+TabMain:CreateToggle({
+    Name = "瞬間交互 (無冷卻按 E)",
+    CurrentValue = false,
+    Callback = function(v) noCooldownEnabled = v end,
+})
+
+-- --- 物資搬運分頁 ---
+TabBring:CreateSection("手動點擊搬運 (傳送到自己)")
+TabBring:CreateButton({ Name = "吸取：全部物品", Callback = function() executeBring("all", LocalPlayer) end })
+TabBring:CreateButton({ Name = "吸取：金錢硬幣", Callback = function() executeBring("money", LocalPlayer) end })
+TabBring:CreateButton({ Name = "吸取：武器與彈藥", Callback = function() executeBring("arms", LocalPlayer) end })
+TabBring:CreateButton({ Name = "吸取：建築與材料", Callback = function() executeBring("loot", LocalPlayer) end })
+TabBring:CreateButton({ Name = "吸取：醫療與食物", Callback = function() executeBring("meds", LocalPlayer) end })
+
+TabBring:CreateSection("聊天指令說明")
+TabBring:CreateLabel("朋友輸入: 'bring loot' 等指令可傳送到他身邊")
+
+-- --- 視覺透視分頁 ---
+TabESP:CreateSection("物品追蹤")
+TabESP:CreateToggle({
+    Name = "物品發光透視 (Highlight)",
+    CurrentValue = false,
+    Callback = function(v) 
+        espEnabled = v 
+        if not v then
+            for _, item in pairs(Workspace:GetDescendants()) do
+                if item.Name == "ItemHighlight" then item:Destroy() end
+            end
+        end
+    end,
+})
+
+-- --- 玩家修改分頁 ---
+TabPlayer:CreateSlider({
+    Name = "移動速度 (WalkSpeed)",
+    Range = {16, 200},
+    Increment = 1,
+    CurrentValue = 16,
+    Callback = function(Value)
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = Value
+        end
+    end,
+})
+
+-- --- 循環系統與監聽 ---
+RunService.RenderStepped:Connect(function()
+    if fullbrightEnabled then
+        Lighting.Ambient = Color3.new(1, 1, 1)
+        Lighting.Brightness = 2
+        Lighting.GlobalShadows = false
+    end
+    if noCooldownEnabled then
+        for _, p in pairs(Workspace:GetDescendants()) do
+            if p:IsA("ProximityPrompt") then p.HoldDuration = 0 end
+        end
+    end
+end)
+
+task.spawn(function()
+    while task.wait(1.5) do
+        if espEnabled then
+            local items = Workspace:FindFirstChild("Items")
+            if items then
+                for _, item in pairs(items:GetChildren()) do
+                    if not item:FindFirstChild("ItemHighlight") then
+                        local hl = Instance.new("Highlight", item)
+                        hl.Name = "ItemHighlight"
+                        hl.FillColor = Color3.new(1, 1, 0)
+                        hl.FillTransparency = 0.6
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- --- 聊天指令監聽 (多玩家支持) ---
+local function setupPlayer(player)
+    player.Chatted:Connect(function(msg)
+        local cmd = string.lower(msg)
+        if string.find(cmd, "bring ") then
+            local cat = string.sub(cmd, 7)
+            if resourceCategories[cat] or cat == "all" then
+                executeBring(cat, player)
+            end
+        end
+    end)
+end
+
+Players.PlayerAdded:Connect(setupPlayer)
+for _, player in pairs(Players:GetPlayers()) do setupPlayer(player) end
+
+Rayfield:LoadConfiguration()
